@@ -1,0 +1,40 @@
+{
+    "name": "simplens-plugin-gmail",
+    "version": "1.0.0",
+    "description": "Gmail/SMTP email provider plugin for SimpleNS using Nodemailer",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "type": "module",
+    "scripts": {
+        "build": "tsc",
+        "prepublishOnly": "npm run build"
+    },
+    "keywords": [
+        "simplens",
+        "plugin",
+        "email",
+        "gmail",
+        "nodemailer",
+        "smtp"
+    ],
+    "author": "SimpleNS Team",
+    "license": "MIT",
+    "peerDependencies": {
+        "simplens-sdk": "^1.0.0"
+    },
+    "dependencies": {
+        "nodemailer": "^6.9.0"
+    },
+    "devDependencies": {
+        "@types/nodemailer": "^6.4.0",
+        "typescript": "^5.0.0"
+    },
+    "files": [
+        "dist",
+        "README.md"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/simplens/plugin-gmail"
+    }
+}
