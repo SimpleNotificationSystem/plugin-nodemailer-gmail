@@ -75,7 +75,7 @@ export class GmailProvider implements SimpleNSProvider<GmailNotification> {
         displayName: 'Gmail (Nodemailer)',
         description: 'Send emails via Gmail SMTP using Nodemailer',
         author: 'Adhish Krishna S',
-        homepage: 'https://github.com/simplens/plugin-gmail',
+        homepage: 'https://github.com/SimpleNotificationSystem/plugin-nodemailer-gmail',
         requiredCredentials: ['EMAIL_USER', 'EMAIL_PASS'],
         optionalConfig: ['EMAIL_HOST', 'EMAIL_PORT', 'EMAIL_FROM'],
     };

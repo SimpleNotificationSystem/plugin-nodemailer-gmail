@@ -1,11 +1,11 @@
-# @simplens/gmail
+# @simplens/nodemailer-gmail
 
 Gmail/SMTP email provider plugin for SimpleNS using Nodemailer.
 
 ## Installation
 
 ```bash
-npm install @simplens/gmail simplens-sdk
+npm install @simplens/nodemailer-gmail simplens-sdk
 ```
 
 ## Configuration
@@ -14,7 +14,7 @@ Add to your `simplens.config.yaml`:
 
 ```yaml
 providers:
-  - package: "@simplens/gmail"
+  - package: "@simplens/nodemailer-gmail"
     id: "gmail"
     credentials:
       EMAIL_HOST: "${EMAIL_HOST}"        # Optional, default: smtp.gmail.com
