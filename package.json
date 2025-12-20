@@ -21,7 +21,7 @@
     "license": "MIT",
     "dependencies": {
         "nodemailer": "^6.9.0",
-        "@simplens/sdk": "^1.0.0"
+        "@simplens/sdk": "^1.0.1"
     },
     "devDependencies": {
         "@types/nodemailer": "^6.4.0",

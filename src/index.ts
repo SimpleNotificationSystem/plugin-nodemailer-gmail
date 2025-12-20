@@ -17,7 +17,7 @@ import {
     baseNotificationSchema,
     replaceVariables,
     isHtmlContent,
-} from 'simplens-sdk';
+} from '@simplens/sdk';
 
 /**
  * Email recipient schema
@@ -41,7 +41,7 @@ const contentSchema = z.object({
 const gmailNotificationSchema = baseNotificationSchema.extend({
     channel: z.literal('email'),
     recipient: recipientSchema,
-    content: contentSchema,
+    content: contentSchema
 });
 
 /**
