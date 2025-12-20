@@ -19,11 +19,9 @@
     ],
     "author": "SimpleNS Team",
     "license": "MIT",
-    "peerDependencies": {
-        "simplens-sdk": "^1.0.1"
-    },
     "dependencies": {
-        "nodemailer": "^6.9.0"
+        "nodemailer": "^6.9.0",
+        "@simplens/sdk": "^1.0.0"
     },
     "devDependencies": {
         "@types/nodemailer": "^6.4.0",
