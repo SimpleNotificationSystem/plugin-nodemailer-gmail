@@ -41,7 +41,8 @@ const contentSchema = z.object({
 const gmailNotificationSchema = baseNotificationSchema.extend({
     channel: z.literal('email'),
     recipient: recipientSchema,
-    content: contentSchema
+    content: contentSchema,
+    created_at: z.coerce.date(),
 });
 
 /**

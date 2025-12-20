@@ -1,9 +1,16 @@
 {
     "name": "@simplens/nodemailer-gmail",
-    "version": "1.0.2",
+    "version": "1.0.4",
     "description": "Gmail/SMTP email provider plugin for SimpleNS using Nodemailer",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js",
+            "default": "./dist/index.js"
+        }
+    },
     "type": "module",
     "scripts": {
         "build": "tsc",
@@ -20,8 +27,8 @@
     "author": "SimpleNS Team",
     "license": "MIT",
     "dependencies": {
-        "nodemailer": "^6.9.0",
-        "@simplens/sdk": "^1.0.1"
+        "@simplens/sdk": "^1.0.3",
+        "nodemailer": "^6.9.0"
     },
     "devDependencies": {
         "@types/nodemailer": "^6.4.0",
