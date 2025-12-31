@@ -202,9 +202,11 @@ describe('GmailProvider', () => {
                 credentials: {
                     EMAIL_USER: 'test@example.com',
                     EMAIL_PASS: 'password123',
+                },
+                options: {
                     EMAIL_HOST: 'smtp.example.com',
                     EMAIL_PORT: '465',
-                },
+                }
             });
 
             expect(nodemailer.createTransport).toHaveBeenCalledWith({

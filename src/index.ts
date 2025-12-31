@@ -109,8 +109,8 @@ export class GmailProvider implements SimpleNSProvider<GmailNotification> {
     async initialize(config: ProviderConfig): Promise<void> {
         this.config = config;
 
-        const host = config.credentials['EMAIL_HOST'] || 'smtp.gmail.com';
-        const port = parseInt(config.credentials['EMAIL_PORT'] || '587', 10);
+        const host = config.options?.['EMAIL_HOST'] as string || 'smtp.gmail.com';
+        const port = parseInt(config.options?.['EMAIL_PORT'] as string || '587', 10);
         const user = config.credentials['EMAIL_USER'];
         const pass = config.credentials['EMAIL_PASS'];
 
