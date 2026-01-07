@@ -6,7 +6,7 @@
  */
 
 import nodemailer from 'nodemailer';
-import type { Transporter } from 'nodemailer';
+import type { Transporter, SendMailOptions } from 'nodemailer';
 import {
     z,
     type SimpleNSProvider,
@@ -15,9 +15,99 @@ import {
     type DeliveryResult,
     type RateLimitConfig,
     baseNotificationSchema,
-    replaceVariables,
     isHtmlContent,
 } from '@simplens/sdk';
+
+/**
+ * Attachment interface for embedded images
+ */
+interface ImageAttachment {
+    filename: string;
+    content: Buffer;
+    cid: string;
+    contentType: string;
+}
+
+/**
+ * Result of extracting base64 images from HTML
+ */
+interface ExtractedImages {
+    html: string;
+    attachments: ImageAttachment[];
+}
+
+/**
+ * Extracts base64 encoded images from HTML and converts them to CID attachments.
+ * This is necessary because most email clients block inline base64 images.
+ * 
+ * @param html - The HTML content containing base64 images
+ * @returns Object with processed HTML (cid: references) and attachments array
+ */
+function extractBase64Images(html: string): ExtractedImages {
+    const attachments: ImageAttachment[] = [];
+
+    // Regex to match base64 image data URIs in img src attributes
+    // Matches: <img ... src="data:image/TYPE;base64,DATA" ...>
+    const base64ImageRegex = /<img([^>]*)\ssrc=["']data:(image\/(\w+));base64,([^"']+)["']([^>]*)>/gi;
+
+    let imageIndex = 0;
+    const processedHtml = html.replace(base64ImageRegex, (match, before, mimeType, extension, base64Data, after) => {
+        const cid = `embedded-image-${imageIndex}-${Date.now()}`;
+        const filename = `image-${imageIndex}.${extension}`;
+
+        attachments.push({
+            filename,
+            content: Buffer.from(base64Data, 'base64'),
+            cid,
+            contentType: mimeType,
+        });
+
+        imageIndex++;
+        return `<img${before} src="cid:${cid}"${after}>`;
+    });
+
+    return { html: processedHtml, attachments };
+}
+
+/**
+ * Replaces template variables in a string using multiple common patterns.
+ * 
+ * Supported patterns:
+ * - {{variable}} - Handlebars/Mustache style
+ * - ${variable}  - ES6 template literal style
+ * - {variable}   - Simple brace style
+ * - $variable    - Shell/PHP style (word characters only)
+ * 
+ * @param template - The template string containing variables
+ * @param variables - Record of variable names to values
+ * @returns The template with all variables replaced
+ */
+function replaceTemplateVariables(
+    template: string,
+    variables: Record<string, unknown>
+): string {
+    let result = template;
+
+    // Define all supported patterns with their regex
+    // Order matters: more specific patterns first to avoid partial matches
+    const patterns = [
+        /\{\{(\w+)\}\}/g,  // {{variable}}
+        /\$\{(\w+)\}/g,    // ${variable}
+        /\{(\w+)\}/g,      // {variable}
+        /\$(\w+)/g,        // $variable
+    ];
+
+    for (const pattern of patterns) {
+        result = result.replace(pattern, (match, varName) => {
+            if (varName in variables) {
+                return String(variables[varName]);
+            }
+            return match; // Leave unmatched patterns as-is
+        });
+    }
+
+    return result;
+}
 
 /**
  * Email recipient schema
@@ -163,20 +253,34 @@ export class GmailProvider implements SimpleNSProvider<GmailNotification> {
         try {
             let message = notification.content.message;
 
-            // Replace template variables
+            // Replace template variables using our custom multi-pattern replacer
             if (notification.variables) {
-                message = replaceVariables(message, notification.variables);
+                message = replaceTemplateVariables(message, notification.variables);
             }
 
             // Detect if message is HTML
             const isHtml = isHtmlContent(message);
 
-            const mailOptions = {
-                from: this.fromEmail,
-                to: notification.recipient.email,
-                subject: notification.content.subject || 'Notification',
-                ...(isHtml ? { html: message } : { text: message }),
-            };
+            let mailOptions: SendMailOptions;
+
+            if (isHtml) {
+                // Extract base64 images and convert to CID attachments
+                const { html, attachments } = extractBase64Images(message);
+                mailOptions = {
+                    from: this.fromEmail,
+                    to: notification.recipient.email,
+                    subject: notification.content.subject || 'Notification',
+                    html,
+                    attachments,
+                };
+            } else {
+                mailOptions = {
+                    from: this.fromEmail,
+                    to: notification.recipient.email,
+                    subject: notification.content.subject || 'Notification',
+                    text: message,
+                };
+            }
 
             const info = await this.transporter.sendMail(mailOptions);
 

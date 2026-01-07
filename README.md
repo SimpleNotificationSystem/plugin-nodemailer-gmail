@@ -80,7 +80,7 @@ EMAIL_FROM=your-email@gmail.com
 ## Features
 
 - ✅ HTML and plain text emails (auto-detected)
-- ✅ Template variable substitution (`{{key}}` syntax)
+- ✅ Template variable substitution (`{{key}}`, `${key}`, `{key}`, `$key` syntax)
 - ✅ Configurable rate limiting
 - ✅ Automatic retry classification
 - ✅ Gmail and any SMTP server support

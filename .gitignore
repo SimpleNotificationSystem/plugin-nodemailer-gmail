@@ -35,3 +35,6 @@ Thumbs.db
 
 # Testing
 coverage/
+
+# Local test scripts (not published)
+scripts/

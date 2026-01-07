@@ -17,6 +17,7 @@
         "test": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
+        "test:send": "tsx scripts/test-send.ts",
         "prepublishOnly": "npm run build"
     },
     "keywords": [
@@ -35,6 +36,8 @@
     },
     "devDependencies": {
         "@types/nodemailer": "^6.4.0",
+        "dotenv": "^17.2.3",
+        "tsx": "^4.21.0",
         "typescript": "^5.0.0",
         "vitest": "^4.0.16"
     },

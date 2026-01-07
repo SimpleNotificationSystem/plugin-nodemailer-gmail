@@ -21,13 +21,7 @@ vi.mock('@simplens/sdk', async () => {
             priority: z.enum(['high', 'normal', 'low']).optional(),
             variables: z.record(z.string(), z.unknown()).optional(),
         }),
-        replaceVariables: vi.fn((message: string, variables: Record<string, unknown>) => {
-            let result = message;
-            for (const [key, value] of Object.entries(variables)) {
-                result = result.replace(new RegExp(`{{${key}}}`, 'g'), String(value));
-            }
-            return result;
-        }),
+        // Note: replaceVariables is no longer mocked as plugin uses its own replaceTemplateVariables
         isHtmlContent: vi.fn((content: string) => {
             return /<[^>]+>/.test(content);
         }),
@@ -367,6 +361,7 @@ describe('GmailProvider', () => {
                 to: 'recipient@example.com',
                 subject: 'HTML Email',
                 html: '<h1>Hello</h1><p>This is HTML content</p>',
+                attachments: [],  // Now includes empty attachments array
             });
         });
 
@@ -577,5 +572,326 @@ describe('createProvider', () => {
     it('should create a new GmailProvider instance', () => {
         const provider = createProvider();
         expect(provider).toBeInstanceOf(GmailProvider);
+    });
+});
+
+describe('Base64 Image Extraction', () => {
+    let provider: GmailProvider;
+    let mockTransporter: {
+        verify: ReturnType<typeof vi.fn>;
+        sendMail: ReturnType<typeof vi.fn>;
+        close: ReturnType<typeof vi.fn>;
+    };
+
+    const createNotification = (overrides: Partial<GmailNotification> = {}): GmailNotification => ({
+        notification_id: 'notif-123',
+        request_id: crypto.randomUUID() as any,
+        client_id: crypto.randomUUID() as any,
+        channel: 'email',
+        recipient: {
+            user_id: 'user-456',
+            email: 'recipient@example.com',
+        },
+        webhook_url: 'https://example.com/webhook',
+        retry_count: 3,
+        content: {
+            subject: 'Test Subject',
+            message: 'Hello, this is a test message.',
+        },
+        created_at: new Date(),
+        ...overrides,
+    });
+
+    beforeEach(() => {
+        provider = new GmailProvider();
+        mockTransporter = {
+            verify: vi.fn(),
+            sendMail: vi.fn(),
+            close: vi.fn(),
+        };
+        vi.mocked(nodemailer.createTransport).mockReturnValue(mockTransporter as any);
+        vi.spyOn(console, 'log').mockImplementation(() => { });
+        vi.spyOn(console, 'error').mockImplementation(() => { });
+    });
+
+    afterEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('should extract base64 image and convert to CID attachment', async () => {
+        mockTransporter.sendMail.mockResolvedValue({
+            messageId: '<msg-id-img@gmail.com>',
+        });
+
+        await provider.initialize({
+            id: 'test',
+            credentials: {
+                EMAIL_USER: 'sender@gmail.com',
+                EMAIL_PASS: 'password123',
+            },
+        });
+
+        const base64Image = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+        const notification = createNotification({
+            content: {
+                subject: 'Image Email',
+                message: `<html><body><img src="data:image/png;base64,${base64Image}" alt="test"/></body></html>`,
+            },
+        });
+
+        const result = await provider.send(notification);
+
+        expect(result.success).toBe(true);
+        expect(mockTransporter.sendMail).toHaveBeenCalledWith(
+            expect.objectContaining({
+                html: expect.stringContaining('src="cid:'),
+                attachments: expect.arrayContaining([
+                    expect.objectContaining({
+                        filename: expect.stringMatching(/^image-0\.png$/),
+                        cid: expect.stringMatching(/^embedded-image-0-/),
+                        contentType: 'image/png',
+                    }),
+                ]),
+            })
+        );
+    });
+
+    it('should extract multiple base64 images', async () => {
+        mockTransporter.sendMail.mockResolvedValue({
+            messageId: '<msg-id-multi@gmail.com>',
+        });
+
+        await provider.initialize({
+            id: 'test',
+            credentials: {
+                EMAIL_USER: 'sender@gmail.com',
+                EMAIL_PASS: 'password123',
+            },
+        });
+
+        const base64Image = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+        const notification = createNotification({
+            content: {
+                subject: 'Multiple Images',
+                message: `<html><body>
+                    <img src="data:image/png;base64,${base64Image}" alt="first"/>
+                    <img src="data:image/jpeg;base64,${base64Image}" alt="second"/>
+                </body></html>`,
+            },
+        });
+
+        const result = await provider.send(notification);
+
+        expect(result.success).toBe(true);
+        expect(mockTransporter.sendMail).toHaveBeenCalledWith(
+            expect.objectContaining({
+                attachments: expect.arrayContaining([
+                    expect.objectContaining({ filename: 'image-0.png' }),
+                    expect.objectContaining({ filename: 'image-1.jpeg' }),
+                ]),
+            })
+        );
+    });
+
+    it('should preserve external URL images', async () => {
+        mockTransporter.sendMail.mockResolvedValue({
+            messageId: '<msg-id-url@gmail.com>',
+        });
+
+        await provider.initialize({
+            id: 'test',
+            credentials: {
+                EMAIL_USER: 'sender@gmail.com',
+                EMAIL_PASS: 'password123',
+            },
+        });
+
+        const notification = createNotification({
+            content: {
+                subject: 'External Image',
+                message: '<html><body><img src="https://example.com/image.png" alt="external"/></body></html>',
+            },
+        });
+
+        const result = await provider.send(notification);
+
+        expect(result.success).toBe(true);
+        expect(mockTransporter.sendMail).toHaveBeenCalledWith(
+            expect.objectContaining({
+                html: expect.stringContaining('src="https://example.com/image.png"'),
+                attachments: [],
+            })
+        );
+    });
+});
+
+describe('Multi-Pattern Variable Replacement', () => {
+    let provider: GmailProvider;
+    let mockTransporter: {
+        verify: ReturnType<typeof vi.fn>;
+        sendMail: ReturnType<typeof vi.fn>;
+        close: ReturnType<typeof vi.fn>;
+    };
+
+    const createNotification = (overrides: Partial<GmailNotification> = {}): GmailNotification => ({
+        notification_id: 'notif-123',
+        request_id: crypto.randomUUID() as any,
+        client_id: crypto.randomUUID() as any,
+        channel: 'email',
+        recipient: {
+            user_id: 'user-456',
+            email: 'recipient@example.com',
+        },
+        webhook_url: 'https://example.com/webhook',
+        retry_count: 3,
+        content: {
+            subject: 'Test Subject',
+            message: 'Hello, this is a test message.',
+        },
+        created_at: new Date(),
+        ...overrides,
+    });
+
+    beforeEach(() => {
+        provider = new GmailProvider();
+        mockTransporter = {
+            verify: vi.fn(),
+            sendMail: vi.fn(),
+            close: vi.fn(),
+        };
+        vi.mocked(nodemailer.createTransport).mockReturnValue(mockTransporter as any);
+        vi.spyOn(console, 'log').mockImplementation(() => { });
+        vi.spyOn(console, 'error').mockImplementation(() => { });
+    });
+
+    afterEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it('should replace {{variable}} pattern', async () => {
+        mockTransporter.sendMail.mockResolvedValue({ messageId: '<msg@gmail.com>' });
+
+        await provider.initialize({
+            id: 'test',
+            credentials: { EMAIL_USER: 'test@gmail.com', EMAIL_PASS: 'pass' },
+        });
+
+        const notification = createNotification({
+            content: { subject: 'Test', message: 'Hello {{name}}!' },
+            variables: { name: 'Alice' },
+        });
+
+        await provider.send(notification);
+
+        expect(mockTransporter.sendMail).toHaveBeenCalledWith(
+            expect.objectContaining({ text: 'Hello Alice!' })
+        );
+    });
+
+    it('should replace ${variable} pattern', async () => {
+        mockTransporter.sendMail.mockResolvedValue({ messageId: '<msg@gmail.com>' });
+
+        await provider.initialize({
+            id: 'test',
+            credentials: { EMAIL_USER: 'test@gmail.com', EMAIL_PASS: 'pass' },
+        });
+
+        const notification = createNotification({
+            content: { subject: 'Test', message: 'Hello ${name}!' },
+            variables: { name: 'Bob' },
+        });
+
+        await provider.send(notification);
+
+        expect(mockTransporter.sendMail).toHaveBeenCalledWith(
+            expect.objectContaining({ text: 'Hello Bob!' })
+        );
+    });
+
+    it('should replace {variable} pattern', async () => {
+        mockTransporter.sendMail.mockResolvedValue({ messageId: '<msg@gmail.com>' });
+
+        await provider.initialize({
+            id: 'test',
+            credentials: { EMAIL_USER: 'test@gmail.com', EMAIL_PASS: 'pass' },
+        });
+
+        const notification = createNotification({
+            content: { subject: 'Test', message: 'Hello {name}!' },
+            variables: { name: 'Carol' },
+        });
+
+        await provider.send(notification);
+
+        expect(mockTransporter.sendMail).toHaveBeenCalledWith(
+            expect.objectContaining({ text: 'Hello Carol!' })
+        );
+    });
+
+    it('should replace $variable pattern', async () => {
+        mockTransporter.sendMail.mockResolvedValue({ messageId: '<msg@gmail.com>' });
+
+        await provider.initialize({
+            id: 'test',
+            credentials: { EMAIL_USER: 'test@gmail.com', EMAIL_PASS: 'pass' },
+        });
+
+        const notification = createNotification({
+            content: { subject: 'Test', message: 'Hello $name!' },
+            variables: { name: 'Dave' },
+        });
+
+        await provider.send(notification);
+
+        expect(mockTransporter.sendMail).toHaveBeenCalledWith(
+            expect.objectContaining({ text: 'Hello Dave!' })
+        );
+    });
+
+    it('should handle mixed patterns in same template', async () => {
+        mockTransporter.sendMail.mockResolvedValue({ messageId: '<msg@gmail.com>' });
+
+        await provider.initialize({
+            id: 'test',
+            credentials: { EMAIL_USER: 'test@gmail.com', EMAIL_PASS: 'pass' },
+        });
+
+        const notification = createNotification({
+            content: {
+                subject: 'Test',
+                message: 'Hi {{name}}, your order ${orderId} with {items} items costs $total.',
+            },
+            variables: { name: 'Eve', orderId: '12345', items: '3', total: '99' },
+        });
+
+        await provider.send(notification);
+
+        expect(mockTransporter.sendMail).toHaveBeenCalledWith(
+            expect.objectContaining({
+                text: 'Hi Eve, your order 12345 with 3 items costs 99.',
+            })
+        );
+    });
+
+    it('should leave unmatched patterns unchanged', async () => {
+        mockTransporter.sendMail.mockResolvedValue({ messageId: '<msg@gmail.com>' });
+
+        await provider.initialize({
+            id: 'test',
+            credentials: { EMAIL_USER: 'test@gmail.com', EMAIL_PASS: 'pass' },
+        });
+
+        const notification = createNotification({
+            content: { subject: 'Test', message: 'Hello {{name}}, value is {{unknown}}.' },
+            variables: { name: 'Frank' },
+        });
+
+        await provider.send(notification);
+
+        expect(mockTransporter.sendMail).toHaveBeenCalledWith(
+            expect.objectContaining({
+                text: 'Hello Frank, value is {{unknown}}.',
+            })
+        );
     });
 });
