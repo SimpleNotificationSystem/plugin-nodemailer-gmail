@@ -141,8 +141,9 @@ describe('GmailProvider', () => {
         it('should return default rate limit config when not initialized', () => {
             const config = provider.getRateLimitConfig();
             expect(config).toEqual({
-                maxTokens: 100,
-                refillRate: 10,
+                maxTokens: 500,
+                refillRate: 500,
+                refillInterval: 'day',
             });
         });
 
@@ -165,6 +166,7 @@ describe('GmailProvider', () => {
             expect(config).toEqual({
                 maxTokens: 200,
                 refillRate: 20,
+                refillInterval: 'day',
             });
         });
     });
