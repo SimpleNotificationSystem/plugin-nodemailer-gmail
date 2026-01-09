@@ -188,11 +188,12 @@ export class GmailProvider implements SimpleNSProvider<GmailNotification> {
         // ~2000/day for Google Workspace
         // Default: 100 tokens, refill 10/second (~100/min max)
         const options = this.config?.options as Record<string, unknown> | undefined;
-        const rateLimit = options?.rateLimit as { maxTokens?: number; refillRate?: number } | undefined;
+        const rateLimit = options?.rateLimit as { maxTokens?: number; refillRate?: number; refillInterval?: 'second' | 'minute' | 'hour' | 'day' } | undefined;
 
         return {
-            maxTokens: rateLimit?.maxTokens || 100,
-            refillRate: rateLimit?.refillRate || 10,
+            maxTokens: rateLimit?.maxTokens || 500, //default set to 500 emails / day for regular emails
+            refillRate: rateLimit?.refillRate || 500,
+            refillInterval: rateLimit?.refillInterval || 'day'
         };
     }
 
